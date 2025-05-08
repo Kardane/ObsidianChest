@@ -1,0 +1,2 @@
+v1	named	intermediary
+FIELD	org/karn/obsidianchest/mixin/ExplosionMixin	Lnet/minecraft/server/world/ServerWorld;	world	world
