@@ -38,7 +38,7 @@ jobs:
             --arg number "$version_number" \
             --arg game "$game_version" \
             --arg changelog "Minecraft $game_version support; updated to Mojang's unobfuscated names." \
-            '{name: ("Obsidian Chest " + $number), version_number: $number, changelog: $changelog, dependencies: [{project_id: "P7dR8mSH", dependency_type: "required"}], game_versions: [$game], version_type: "release", loaders: ["fabric"], project_id: "bnSL2xNF", file_parts: ["file"], primary_file: "file", environment: "server_only_client_optional"}' > modrinth-data.json
+            '{name: ("Obsidian Chest " + $number), version_number: $number, changelog: $changelog, dependencies: [{project_id: "P7dR8mSH", dependency_type: "required"}], game_versions: [$game], version_type: "release", loaders: ["fabric"], featured: false, status: "listed", project_id: "bnSL2xNF", file_parts: ["file"], primary_file: "file", environment: "server_only_client_optional"}' > modrinth-data.json
           http_code="$(curl --silent --show-error --write-out '%{http_code}' \
             -H 'User-Agent: ObsidianChest GitHub Actions' \
             -H "Authorization: $MODRINTH_TOKEN" \
