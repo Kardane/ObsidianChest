@@ -34,18 +34,22 @@ jobs:
             echo "Modrinth version $version_number already exists."
             exit 0
           fi
-          data="$(jq -cn \
+          jq -cn \
             --arg number "$version_number" \
             --arg game "$game_version" \
             --arg changelog "Minecraft $game_version support; updated to Mojang's unobfuscated names." \
-            '{name: ("Obsidian Chest " + $number), version_number: $number, changelog: $changelog, dependencies: [{project_id: "P7dR8mSH", dependency_type: "required"}], game_versions: [$game], version_type: "release", loaders: ["fabric"], project_id: "bnSL2xNF", file_parts: ["file"], primary_file: "file", environment: "server_only_client_optional"}')"
-          curl --fail-with-body --silent --show-error \
+            '{name: ("Obsidian Chest " + $number), version_number: $number, changelog: $changelog, dependencies: [{project_id: "P7dR8mSH", dependency_type: "required"}], game_versions: [$game], version_type: "release", loaders: ["fabric"], project_id: "bnSL2xNF", file_parts: ["file"], primary_file: "file", environment: "server_only_client_optional"}' > modrinth-data.json
+          http_code="$(curl --silent --show-error --write-out '%{http_code}' \
             -H 'User-Agent: ObsidianChest GitHub Actions' \
             -H "Authorization: $MODRINTH_TOKEN" \
-            --form-string "data=$data" \
+            -F 'data=<modrinth-data.json;type=application/json' \
             -F "file=@${jar_name};type=application/java-archive" \
             'https://api.modrinth.com/v2/version' \
-            -o modrinth-response.json
+            -o modrinth-response.json)"
+          if [[ "$http_code" != 2* ]]; then
+            jq -r '.error, .description, .message | select(. != null)' modrinth-response.json
+            exit 1
+          fi
           local_sha="$(sha256sum "$jar_name" | cut -d ' ' -f 1)"
           jq -e --arg sha "$local_sha" '.files | any(.[]; .hashes.sha256 == $sha)' modrinth-response.json >/dev/null
           jq -r '"Published Modrinth version: https://modrinth.com/mod/obsidian-chest/version/" + .id' modrinth-response.json
