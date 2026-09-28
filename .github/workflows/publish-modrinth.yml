@@ -1,0 +1,51 @@
+name: Publish Modrinth release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: GitHub release tag containing the built mod JAR
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Upload release JAR to Modrinth
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          test -n "$MODRINTH_TOKEN"
+          version_number="${TAG#v}"
+          game_version="${version_number##*-}"
+          jar_name="ObsidianChest-${version_number}.jar"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$jar_name" --dir .
+          test -s "$jar_name"
+          if curl --fail --silent --show-error \
+              -H 'User-Agent: ObsidianChest GitHub Actions' \
+              'https://api.modrinth.com/v2/project/bnSL2xNF/version' \
+              | jq -e --arg number "$version_number" 'any(.[]; .version_number == $number)' >/dev/null; then
+            echo "Modrinth version $version_number already exists."
+            exit 0
+          fi
+          data="$(jq -cn \
+            --arg number "$version_number" \
+            --arg game "$game_version" \
+            --arg changelog "Minecraft $game_version support; updated to Mojang's unobfuscated names." \
+            '{name: ("Obsidian Chest " + $number), version_number: $number, changelog: $changelog, dependencies: [{project_id: "P7dR8mSH", dependency_type: "required"}], game_versions: [$game], version_type: "release", loaders: ["fabric"], project_id: "bnSL2xNF", file_parts: ["file"], primary_file: "file", environment: "server_only_client_optional"}')"
+          curl --fail-with-body --silent --show-error \
+            -H 'User-Agent: ObsidianChest GitHub Actions' \
+            -H "Authorization: $MODRINTH_TOKEN" \
+            --form-string "data=$data" \
+            -F "file=@${jar_name};type=application/java-archive" \
+            'https://api.modrinth.com/v2/version' \
+            -o modrinth-response.json
+          local_sha="$(sha256sum "$jar_name" | cut -d ' ' -f 1)"
+          jq -e --arg sha "$local_sha" '.files | any(.[]; .hashes.sha256 == $sha)' modrinth-response.json >/dev/null
+          jq -r '"Published Modrinth version: https://modrinth.com/mod/obsidian-chest/version/" + .id' modrinth-response.json

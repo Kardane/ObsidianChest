@@ -2,26 +2,28 @@ package org.karn.obsidianchest.mixin;
 
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.llamalad7.mixinextras.sugar.Local;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.explosion.Explosion;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ServerExplosion;
+import net.minecraft.world.level.block.EntityBlock;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 
 import static org.karn.obsidianchest.Obsidianchest.OBSIDIANCHEST;
 
-@Mixin(Explosion.class)
+@Mixin(ServerExplosion.class)
 public class ExplosionMixin {
-    @Shadow
-    private ServerWorld world;
+    @Shadow @Final private ServerLevel level;
 
     @ModifyExpressionValue(
-            method = "collectBlocksAndDamageEntities",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/World;isInBuildLimit(Lnet/minecraft/util/math/BlockPos;)Z")
+            method = "calculateExplodedPositions",
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerLevel;isInWorldBounds(Lnet/minecraft/core/BlockPos;)Z")
     )
-    private boolean onlyFlyIfAllowed(boolean original,@Local(ordinal = 0) BlockPos blockPos) {
-        if(world.getGameRules().getBoolean(OBSIDIANCHEST) && world.getBlockEntity(blockPos) != null) {
+    private boolean onlyFlyIfAllowed(boolean original, @Local(ordinal = 0) BlockPos blockPos) {
+        if (original && level.getGameRules().get(OBSIDIANCHEST)
+                && level.getBlockState(blockPos).getBlock() instanceof EntityBlock) {
             return false;
         }
         return original;
