@@ -27,11 +27,17 @@ jobs:
           jar_name="ObsidianChest-${version_number}.jar"
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$jar_name" --dir .
           test -s "$jar_name"
-          if curl --fail --silent --show-error \
+          local_sha="$(sha512sum "$jar_name" | cut -d ' ' -f 1)"
+          existing_version="$(curl --fail --silent --show-error \
               -H 'User-Agent: ObsidianChest GitHub Actions' \
               'https://api.modrinth.com/v2/project/bnSL2xNF/version' \
-              | jq -e --arg number "$version_number" 'any(.[]; .version_number == $number)' >/dev/null; then
-            echo "Modrinth version $version_number already exists."
+              | jq -c --arg number "$version_number" '.[] | select(.version_number == $number)')"
+          if [[ -n "$existing_version" ]]; then
+            if ! jq -e --arg sha "$local_sha" '.files | any(.[]; .hashes.sha512 == $sha)' <<<"$existing_version" >/dev/null; then
+              echo "Modrinth version $version_number exists with a different JAR hash."
+              exit 1
+            fi
+            jq -r '"Verified Modrinth version: https://modrinth.com/mod/obsidian-chest/version/" + .id' <<<"$existing_version"
             exit 0
           fi
           jq -cn \
@@ -51,8 +57,7 @@ jobs:
             jq -c . modrinth-response.json | cut -c 1-1500
             exit 1
           fi
-          local_sha="$(sha256sum "$jar_name" | cut -d ' ' -f 1)"
-          if ! jq -e --arg sha "$local_sha" '.files | any(.[]; .hashes.sha256 == $sha)' modrinth-response.json >/dev/null; then
+          if ! jq -e --arg sha "$local_sha" '.files | any(.[]; .hashes.sha512 == $sha)' modrinth-response.json >/dev/null; then
             echo "Modrinth file hash does not match the GitHub release JAR."
             jq -c '{id,files}' modrinth-response.json | cut -c 1-1500
             exit 1
