@@ -47,9 +47,14 @@ jobs:
             'https://api.modrinth.com/v2/version' \
             -o modrinth-response.json)"
           if [[ "$http_code" != 2* ]]; then
-            jq -r '.error, .description, .message | select(. != null)' modrinth-response.json
+            echo "Modrinth returned HTTP $http_code"
+            jq -c . modrinth-response.json | cut -c 1-1500
             exit 1
           fi
           local_sha="$(sha256sum "$jar_name" | cut -d ' ' -f 1)"
-          jq -e --arg sha "$local_sha" '.files | any(.[]; .hashes.sha256 == $sha)' modrinth-response.json >/dev/null
+          if ! jq -e --arg sha "$local_sha" '.files | any(.[]; .hashes.sha256 == $sha)' modrinth-response.json >/dev/null; then
+            echo "Modrinth file hash does not match the GitHub release JAR."
+            jq -c '{id,files}' modrinth-response.json | cut -c 1-1500
+            exit 1
+          fi
           jq -r '"Published Modrinth version: https://modrinth.com/mod/obsidian-chest/version/" + .id' modrinth-response.json
